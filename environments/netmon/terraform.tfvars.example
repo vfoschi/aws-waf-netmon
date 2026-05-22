@@ -1,0 +1,58 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# DO NOT commit terraform.tfvars — it may contain sensitive IPs.
+
+aws_region  = "eu-west-1"
+environment = "production"
+
+# REGIONAL for ALB/API Gateway; CLOUDFRONT requires region = us-east-1
+waf_scope = "REGIONAL"
+
+# ── IP Allowlist ──────────────────────────────────────────────────────────────
+# Add your office public IPs, VPN exit nodes, and monitoring agents.
+# These IPs bypass ALL WAF rules and are always allowed.
+ip_allowlist_ipv4 = [
+  # "203.0.113.10/32",   # Office public IP
+  # "198.51.100.0/24",   # VPN range
+]
+
+ip_allowlist_ipv6 = [
+  # "2001:db8::/32",
+]
+
+# ── IP Blocklist ──────────────────────────────────────────────────────────────
+# Known malicious IPs to hard-block before any other rule evaluation.
+ip_blocklist_ipv4 = []
+ip_blocklist_ipv6 = []
+
+# ── Rate Limiting ─────────────────────────────────────────────────────────────
+rate_limit_enabled   = true
+rate_limit_threshold = 2000   # requests per 5 minutes per source IP
+
+# ── Geo Blocking ─────────────────────────────────────────────────────────────
+geo_block_enabled       = false
+geo_block_country_codes = []
+# Example — block specific countries:
+# geo_block_enabled       = true
+# geo_block_country_codes = ["CN", "RU", "KP", "IR"]
+
+# ── Rule Exceptions ───────────────────────────────────────────────────────────
+# Set true if NETMON devices upload large payloads (>8KB body limit in CommonRuleSet)
+exclude_size_restriction_body = false
+
+# Set true if your Paperclip cloud agents or AWS Lambda functions call NETMON APIs
+exclude_hosting_provider_ips = false
+
+# ── Bot Control ───────────────────────────────────────────────────────────────
+# Adds ~$10/month base cost + per-million-request fees. Enable only when needed.
+bot_control_enabled = false
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+log_retention_days = 90
+
+# ── Resource Association ──────────────────────────────────────────────────────
+# ARNs of ALBs, API Gateways, AppSync APIs to protect.
+# Leave empty to create the WAF without associating it (useful for testing).
+resource_arns = [
+  # "arn:aws:elasticloadbalancing:eu-west-1:123456789012:loadbalancer/app/netmon-alb/abc123",
+  # "arn:aws:apigateway:eu-west-1::/restapis/abc123/stages/production",
+]

@@ -1,0 +1,25 @@
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/tfplan
+**/.terraformrc
+**/terraform.rc
+
+# Variables files — may contain sensitive IPs or credentials
+**/terraform.tfvars
+# Keep the example
+!**/terraform.tfvars.example
+
+# AWS credentials
+.aws/
+*.pem
+*.key
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

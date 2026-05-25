@@ -27,8 +27,9 @@ resource "aws_security_group" "alb" {
     ipv6_cidr_blocks = ["::/0"]
   }
 
+  # enable_https is a static bool → safe to use in dynamic block
   dynamic "ingress" {
-    for_each = var.certificate_arn != "" ? [1] : []
+    for_each = var.enable_https ? [1] : []
     content {
       description      = "HTTPS"
       from_port        = 443
@@ -94,10 +95,11 @@ resource "aws_lb_target_group_attachment" "origin" {
 }
 
 # ─── Listeners ───────────────────────────────────────────────────────────────
+# count uses var.enable_https which is a static bool — safe for plan-time evaluation.
 
-# HTTP → forward directly (no certificate)
+# HTTP → forward directly (no HTTPS)
 resource "aws_lb_listener" "http_forward" {
-  count             = var.certificate_arn == "" ? 1 : 0
+  count             = var.enable_https ? 0 : 1
   load_balancer_arn = aws_lb.this.arn
   port              = "80"
   protocol          = "HTTP"
@@ -109,9 +111,9 @@ resource "aws_lb_listener" "http_forward" {
   }
 }
 
-# HTTP → redirect to HTTPS (when certificate is provided)
+# HTTP → redirect to HTTPS (when HTTPS is enabled)
 resource "aws_lb_listener" "http_redirect" {
-  count             = var.certificate_arn != "" ? 1 : 0
+  count             = var.enable_https ? 1 : 0
   load_balancer_arn = aws_lb.this.arn
   port              = "80"
   protocol          = "HTTP"
@@ -127,9 +129,9 @@ resource "aws_lb_listener" "http_redirect" {
   }
 }
 
-# HTTPS listener (only when certificate_arn is provided)
+# HTTPS listener (only when enable_https = true)
 resource "aws_lb_listener" "https" {
-  count             = var.certificate_arn != "" ? 1 : 0
+  count             = var.enable_https ? 1 : 0
   load_balancer_arn = aws_lb.this.arn
   port              = "443"
   protocol          = "HTTPS"

@@ -16,16 +16,18 @@ variable "waf_scope" {
   default     = "REGIONAL"
 }
 
-# ── Network ───────────────────────────────────────────────────────────────────
+# ── Network (optional — defaults to the account's default VPC) ────────────────
 
 variable "vpc_id" {
-  description = "ID of the VPC where the ALB will be created"
+  description = "VPC ID for the ALB. Leave null to use the account's default VPC automatically."
   type        = string
+  default     = null
 }
 
 variable "subnet_ids" {
-  description = "List of public subnet IDs for the ALB (minimum 2, different AZs)"
+  description = "Public subnet IDs for the ALB (minimum 2, different AZs). Leave null to auto-detect public subnets from the VPC."
   type        = list(string)
+  default     = null
 }
 
 variable "alb_internal" {
@@ -43,7 +45,7 @@ variable "enable_deletion_protection" {
 # ── Origin (backend IP) ───────────────────────────────────────────────────────
 
 variable "origin_ip" {
-  description = "IP address of the backend server. All traffic that passes WAF is forwarded here."
+  description = "IP address of the backend server. All traffic that passes WAF is forwarded here. Can be a public IP outside AWS."
   type        = string
 }
 
@@ -54,7 +56,7 @@ variable "origin_port" {
 }
 
 variable "origin_availability_zone" {
-  description = "AZ for the origin IP target. Use 'all' for IPs outside the VPC (on-premises or external)"
+  description = "Use 'all' for IPs outside the VPC (public IPs, on-premises). Use an AZ name for IPs inside this VPC."
   type        = string
   default     = "all"
 }
@@ -68,19 +70,19 @@ variable "health_check_path" {
 # ── TLS Certificate ───────────────────────────────────────────────────────────
 
 variable "certificate_domain" {
-  description = "Domain name for the ACM certificate (e.g. netmon2.technacy.it or *.technacy.it). Leave empty to skip HTTPS."
+  description = "Domain name for the ACM certificate (e.g. *.technacy.it). Leave empty to skip HTTPS."
   type        = string
   default     = ""
 }
 
 variable "certificate_san" {
-  description = "Additional Subject Alternative Names for the ACM certificate (e.g. [\"*.technacy.it\"])"
+  description = "Additional Subject Alternative Names for the ACM certificate"
   type        = list(string)
   default     = []
 }
 
 variable "route53_zone_id" {
-  description = "Route53 hosted zone ID for automatic DNS validation of the ACM certificate. Leave empty to validate manually."
+  description = "Route53 hosted zone ID for automatic DNS validation. Leave empty to validate manually."
   type        = string
   default     = ""
 }
@@ -94,7 +96,7 @@ variable "certificate_arn" {
 # ── IP Allowlist / Blocklist ───────────────────────────────────────────────────
 
 variable "ip_allowlist_ipv4" {
-  description = "IPv4 CIDRs to always allow (office, VPN, monitoring)"
+  description = "IPv4 CIDRs to always allow. Must use network address notation (e.g. 1.2.3.0/24, not 1.2.3.5/24)."
   type        = list(string)
   default     = []
 }

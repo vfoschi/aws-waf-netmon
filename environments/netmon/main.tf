@@ -11,11 +11,45 @@ provider "aws" {
   }
 }
 
+# ─── VPC auto-discovery ──────────────────────────────────────────────────────
+# When vpc_id / subnet_ids are null, fall back to the account's default VPC
+# and its public subnets. This covers the common case of forwarding to a
+# public IP outside AWS where any VPC works as the ALB host.
+
+data "aws_vpc" "default" {
+  count   = var.vpc_id == null ? 1 : 0
+  default = true
+}
+
+data "aws_subnets" "public" {
+  count = var.subnet_ids == null ? 1 : 0
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id != null ? var.vpc_id : data.aws_vpc.default[0].id]
+  }
+  filter {
+    name   = "map-public-ip-on-launch"
+    values = ["true"]
+  }
+}
+
+locals {
+  effective_vpc_id     = var.vpc_id != null ? var.vpc_id : data.aws_vpc.default[0].id
+  effective_subnet_ids = var.subnet_ids != null ? var.subnet_ids : data.aws_subnets.public[0].ids
+
+  # Priority: explicit certificate_arn override → auto-validated cert → unvalidated cert ARN → empty
+  resolved_certificate_arn = (
+    var.certificate_arn != "" ? var.certificate_arn :
+    var.route53_zone_id != "" && var.certificate_domain != "" ? aws_acm_certificate_validation.this[0].certificate_arn :
+    var.certificate_domain != "" ? aws_acm_certificate.this[0].arn :
+    ""
+  )
+
+  # Static bool evaluated at plan time — safe for use in count/for_each
+  https_enabled = var.certificate_domain != "" || var.certificate_arn != ""
+}
+
 # ─── ACM Certificate ─────────────────────────────────────────────────────────
-# Creates a DNS-validated certificate when certificate_domain is set.
-# If route53_zone_id is also set, DNS validation records are created
-# automatically and Terraform waits for the cert to be ISSUED before continuing.
-# Otherwise, the output "certificate_validation_records" shows the CNAMEs to add manually.
 
 resource "aws_acm_certificate" "this" {
   count             = var.certificate_domain != "" ? 1 : 0
@@ -63,19 +97,6 @@ resource "aws_acm_certificate_validation" "this" {
   ]
 }
 
-locals {
-  # Priority: explicit certificate_arn override → auto-validated cert → unvalidated cert ARN → empty
-  resolved_certificate_arn = (
-    var.certificate_arn != "" ? var.certificate_arn :
-    var.route53_zone_id != "" && var.certificate_domain != "" ? aws_acm_certificate_validation.this[0].certificate_arn :
-    var.certificate_domain != "" ? aws_acm_certificate.this[0].arn :
-    ""
-  )
-
-  # Static bool evaluated at plan time — safe for use in count/for_each
-  https_enabled = var.certificate_domain != "" || var.certificate_arn != ""
-}
-
 # ─── ALB ─────────────────────────────────────────────────────────────────────
 
 module "alb" {
@@ -83,8 +104,8 @@ module "alb" {
 
   name        = "netmon-${var.environment}"
   environment = var.environment
-  vpc_id      = var.vpc_id
-  subnet_ids  = var.subnet_ids
+  vpc_id      = local.effective_vpc_id
+  subnet_ids  = local.effective_subnet_ids
   internal    = var.alb_internal
 
   origin_ip                = var.origin_ip
@@ -111,23 +132,17 @@ module "waf" {
   environment = var.environment
   scope       = var.waf_scope
 
-  # IP allowlist: office, VPN, monitoring IPs
   ip_allowlist_ipv4 = var.ip_allowlist_ipv4
   ip_allowlist_ipv6 = var.ip_allowlist_ipv6
-
-  # IP blocklist: known malicious IPs
   ip_blocklist_ipv4 = var.ip_blocklist_ipv4
   ip_blocklist_ipv6 = var.ip_blocklist_ipv6
 
-  # Rate limiting: 2000 req/5min per IP (adjustable)
   rate_limit_enabled   = var.rate_limit_enabled
   rate_limit_threshold = var.rate_limit_threshold
 
-  # Geographic blocking (disabled by default for NETMON)
   geo_block_enabled       = var.geo_block_enabled
   geo_block_country_codes = var.geo_block_country_codes
 
-  # AWS Managed Rules
   managed_rules = {
     common = {
       vendor_name     = "AWS"
@@ -175,12 +190,10 @@ module "waf" {
 
   bot_control_enabled = var.bot_control_enabled
 
-  # Logging
   logging_enabled     = true
   log_retention_days  = var.log_retention_days
   log_redacted_fields = ["authorization", "cookie"]
 
-  # Associate WAF with the ALB created above
   resource_arns = [module.alb.alb_arn]
 
   tags = {

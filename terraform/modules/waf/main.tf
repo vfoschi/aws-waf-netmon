@@ -337,7 +337,7 @@ resource "aws_wafv2_web_acl_logging_configuration" "this" {
 # ─── Resource Associations ───────────────────────────────────────────────────
 
 resource "aws_wafv2_web_acl_association" "this" {
-  for_each     = toset(var.resource_arns)
+  for_each     = { for i, arn in var.resource_arns : tostring(i) => arn }
   resource_arn = each.value
   web_acl_arn  = aws_wafv2_web_acl.this.arn
 }

@@ -1,25 +1,35 @@
-output "alb_dns_name" {
-  description = "DNS name of the ALB — point your domain CNAME (or Route53 alias) here"
-  value       = module.alb.alb_dns_name
+output "cloudfront_domain_name" {
+  description = "CloudFront domain name — create a CNAME or Route53 alias pointing here"
+  value       = module.cloudfront.domain_name
 }
 
-output "alb_arn" {
-  description = "ARN of the Application Load Balancer"
-  value       = module.alb.alb_arn
+output "cloudfront_hosted_zone_id" {
+  description = "Hosted zone ID of the CloudFront distribution (for Route53 alias records)"
+  value       = module.cloudfront.hosted_zone_id
 }
 
-output "alb_zone_id" {
-  description = "Hosted zone ID of the ALB (for Route53 alias records)"
-  value       = module.alb.alb_zone_id
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID"
+  value       = module.cloudfront.distribution_id
+}
+
+output "web_acl_arn" {
+  description = "WAF Web ACL ARN (us-east-1, CLOUDFRONT scope)"
+  value       = module.waf.web_acl_arn
+}
+
+output "web_acl_name" {
+  description = "WAF Web ACL Name"
+  value       = module.waf.web_acl_name
 }
 
 output "certificate_arn" {
-  description = "ARN of the ACM certificate attached to the ALB"
+  description = "ACM certificate ARN (us-east-1)"
   value       = local.resolved_certificate_arn
 }
 
 output "certificate_validation_records" {
-  description = "DNS CNAME records to add for manual ACM certificate validation (only needed when route53_zone_id is not set)"
+  description = "DNS CNAME records for manual ACM certificate validation (only when route53_zone_id is empty)"
   value = (
     var.certificate_domain != "" && var.route53_zone_id == "" ?
     [
@@ -30,29 +40,4 @@ output "certificate_validation_records" {
       }
     ] : []
   )
-}
-
-output "web_acl_id" {
-  description = "WAF Web ACL ID"
-  value       = module.waf.web_acl_id
-}
-
-output "web_acl_arn" {
-  description = "WAF Web ACL ARN"
-  value       = module.waf.web_acl_arn
-}
-
-output "web_acl_name" {
-  description = "WAF Web ACL Name"
-  value       = module.waf.web_acl_name
-}
-
-output "web_acl_capacity" {
-  description = "WAF capacity units consumed (max 1500 for REGIONAL)"
-  value       = module.waf.web_acl_capacity
-}
-
-output "log_group_name" {
-  description = "CloudWatch Log Group name for WAF logs"
-  value       = module.waf.log_group_name
 }

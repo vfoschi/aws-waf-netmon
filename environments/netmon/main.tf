@@ -1,3 +1,4 @@
+# Default provider for regional resources (CloudWatch logs, etc.)
 provider "aws" {
   region = var.aws_region
 
@@ -11,51 +12,31 @@ provider "aws" {
   }
 }
 
-# ─── VPC auto-discovery ──────────────────────────────────────────────────────
-# When vpc_id / subnet_ids are null, fall back to the account's default VPC
-# and its public subnets. This covers the common case of forwarding to a
-# public IP outside AWS where any VPC works as the ALB host.
+# us-east-1 provider required for:
+# - WAFv2 with CLOUDFRONT scope
+# - ACM certificate for CloudFront
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
 
-data "aws_vpc" "default" {
-  count   = var.vpc_id == null ? 1 : 0
-  default = true
-}
-
-data "aws_subnets" "public" {
-  count = var.subnet_ids == null ? 1 : 0
-  filter {
-    name   = "vpc-id"
-    values = [var.vpc_id != null ? var.vpc_id : data.aws_vpc.default[0].id]
-  }
-  filter {
-    name   = "map-public-ip-on-launch"
-    values = ["true"]
+  default_tags {
+    tags = {
+      Project     = "netmon"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+      Repository  = "aws-waf-netmon"
+    }
   }
 }
 
-locals {
-  effective_vpc_id     = var.vpc_id != null ? var.vpc_id : data.aws_vpc.default[0].id
-  effective_subnet_ids = var.subnet_ids != null ? var.subnet_ids : data.aws_subnets.public[0].ids
-
-  # Priority: explicit certificate_arn override → auto-validated cert → unvalidated cert ARN → empty
-  resolved_certificate_arn = (
-    var.certificate_arn != "" ? var.certificate_arn :
-    var.route53_zone_id != "" && var.certificate_domain != "" ? aws_acm_certificate_validation.this[0].certificate_arn :
-    var.certificate_domain != "" ? aws_acm_certificate.this[0].arn :
-    ""
-  )
-
-  # Static bool evaluated at plan time — safe for use in count/for_each
-  https_enabled = var.certificate_domain != "" || var.certificate_arn != ""
-}
-
-# ─── ACM Certificate ─────────────────────────────────────────────────────────
+# ─── ACM Certificate (us-east-1 — required by CloudFront) ────────────────────
 
 resource "aws_acm_certificate" "this" {
-  count             = var.certificate_domain != "" ? 1 : 0
-  domain_name       = var.certificate_domain
-  validation_method = "DNS"
+  count    = var.certificate_domain != "" ? 1 : 0
+  provider = aws.us_east_1
 
+  domain_name               = var.certificate_domain
+  validation_method         = "DNS"
   subject_alternative_names = var.certificate_san
 
   lifecycle {
@@ -90,47 +71,34 @@ resource "aws_route53_record" "cert_validation" {
 }
 
 resource "aws_acm_certificate_validation" "this" {
-  count           = var.route53_zone_id != "" && var.certificate_domain != "" ? 1 : 0
-  certificate_arn = aws_acm_certificate.this[0].arn
-  validation_record_fqdns = [
-    for record in aws_route53_record.cert_validation : record.fqdn
-  ]
+  count    = var.route53_zone_id != "" && var.certificate_domain != "" ? 1 : 0
+  provider = aws.us_east_1
+
+  certificate_arn         = aws_acm_certificate.this[0].arn
+  validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
 }
 
-# ─── ALB ─────────────────────────────────────────────────────────────────────
-
-module "alb" {
-  source = "../../terraform/modules/alb"
-
-  name        = "netmon-${var.environment}"
-  environment = var.environment
-  vpc_id      = local.effective_vpc_id
-  subnet_ids  = local.effective_subnet_ids
-  internal    = var.alb_internal
-
-  origin_ip                = var.origin_ip
-  origin_port              = var.origin_port
-  origin_availability_zone = var.origin_availability_zone
-
-  health_check_path          = var.health_check_path
-  enable_https               = local.https_enabled
-  certificate_arn            = local.resolved_certificate_arn
-  enable_deletion_protection = var.enable_deletion_protection
-
-  tags = {
-    Application = "netmon"
-    Team        = "infrastructure"
-  }
+locals {
+  resolved_certificate_arn = (
+    var.certificate_arn != "" ? var.certificate_arn :
+    var.route53_zone_id != "" && var.certificate_domain != "" ? aws_acm_certificate_validation.this[0].certificate_arn :
+    var.certificate_domain != "" ? aws_acm_certificate.this[0].arn :
+    ""
+  )
 }
 
-# ─── WAF ─────────────────────────────────────────────────────────────────────
+# ─── WAF (us-east-1, CLOUDFRONT scope) ───────────────────────────────────────
 
 module "waf" {
   source = "../../terraform/modules/waf"
 
+  providers = {
+    aws = aws.us_east_1
+  }
+
   name        = "netmon-${var.environment}"
   environment = var.environment
-  scope       = var.waf_scope
+  scope       = "CLOUDFRONT"
 
   ip_allowlist_ipv4 = var.ip_allowlist_ipv4
   ip_allowlist_ipv6 = var.ip_allowlist_ipv6
@@ -194,7 +162,31 @@ module "waf" {
   log_retention_days  = var.log_retention_days
   log_redacted_fields = ["authorization", "cookie"]
 
-  resource_arns = [module.alb.alb_arn]
+  # CloudFront attaches the WAF via web_acl_id on the distribution — no association resource needed
+  resource_arns = []
+
+  tags = {
+    Application = "netmon"
+    Team        = "infrastructure"
+  }
+}
+
+# ─── CloudFront Distribution ──────────────────────────────────────────────────
+
+module "cloudfront" {
+  source = "../../terraform/modules/cloudfront"
+
+  name        = "netmon-${var.environment}"
+  environment = var.environment
+  aliases     = var.cloudfront_aliases
+
+  origin_domain          = var.origin_ip
+  origin_http_port       = var.origin_port
+  origin_protocol_policy = "http-only"
+
+  web_acl_arn     = module.waf.web_acl_arn
+  certificate_arn = local.resolved_certificate_arn
+  price_class     = var.cloudfront_price_class
 
   tags = {
     Application = "netmon"

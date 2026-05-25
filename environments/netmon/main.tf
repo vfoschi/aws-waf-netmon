@@ -11,6 +11,29 @@ provider "aws" {
   }
 }
 
+module "alb" {
+  source = "../../terraform/modules/alb"
+
+  name        = "netmon-${var.environment}"
+  environment = var.environment
+  vpc_id      = var.vpc_id
+  subnet_ids  = var.subnet_ids
+  internal    = var.alb_internal
+
+  origin_ip                = var.origin_ip
+  origin_port              = var.origin_port
+  origin_availability_zone = var.origin_availability_zone
+
+  health_check_path          = var.health_check_path
+  certificate_arn            = var.certificate_arn
+  enable_deletion_protection = var.enable_deletion_protection
+
+  tags = {
+    Application = "netmon"
+    Team        = "infrastructure"
+  }
+}
+
 module "waf" {
   source = "../../terraform/modules/waf"
 
@@ -41,8 +64,7 @@ module "waf" {
       name            = "AWSManagedRulesCommonRuleSet"
       priority        = 10
       override_action = "none"
-      # SizeRestrictions_BODY excluded if NETMON accepts large payloads (e.g. bulk device data uploads)
-      excluded_rules = var.exclude_size_restriction_body ? ["SizeRestrictions_BODY"] : []
+      excluded_rules  = var.exclude_size_restriction_body ? ["SizeRestrictions_BODY"] : []
     }
     known_bad_inputs = {
       vendor_name     = "AWS"
@@ -77,8 +99,7 @@ module "waf" {
       name            = "AWSManagedRulesAnonymousIpList"
       priority        = 60
       override_action = "none"
-      # HostingProviderIPList excluded if NETMON agents run on cloud VMs (AWS, GCP, Azure IPs)
-      excluded_rules = var.exclude_hosting_provider_ips ? ["HostingProviderIPList"] : []
+      excluded_rules  = var.exclude_hosting_provider_ips ? ["HostingProviderIPList"] : []
     }
   }
 
@@ -89,8 +110,8 @@ module "waf" {
   log_retention_days  = var.log_retention_days
   log_redacted_fields = ["authorization", "cookie"]
 
-  # Associate WAF with ALB or API Gateway ARNs
-  resource_arns = var.resource_arns
+  # Associate WAF with the ALB created by this environment
+  resource_arns = [module.alb.alb_arn]
 
   tags = {
     Application = "netmon"

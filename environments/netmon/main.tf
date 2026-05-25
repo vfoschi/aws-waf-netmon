@@ -29,7 +29,7 @@ resource "aws_acm_certificate" "this" {
   }
 
   tags = {
-    Name        = var.certificate_domain
+    Name        = replace(var.certificate_domain, "*", "wildcard")
     Environment = var.environment
     Application = "netmon"
   }

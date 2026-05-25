@@ -53,8 +53,16 @@ variable "health_check_path" {
   default     = "/"
 }
 
+# enable_https must be a static bool (not computed) so Terraform can evaluate
+# listener count at plan time. Set it to true when a certificate will be provided.
+variable "enable_https" {
+  description = "Create HTTPS listener on port 443 and redirect HTTP to HTTPS. Requires certificate_arn to also be set."
+  type        = bool
+  default     = false
+}
+
 variable "certificate_arn" {
-  description = "ARN of the ACM certificate for HTTPS. Leave empty for HTTP-only."
+  description = "ARN of the ACM certificate for HTTPS. Required when enable_https is true."
   type        = string
   default     = ""
 }

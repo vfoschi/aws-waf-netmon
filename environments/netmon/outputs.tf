@@ -1,5 +1,5 @@
 output "alb_dns_name" {
-  description = "DNS name of the ALB — point your domain CNAME here"
+  description = "DNS name of the ALB — point your domain CNAME (or Route53 alias) here"
   value       = module.alb.alb_dns_name
 }
 
@@ -11,6 +11,25 @@ output "alb_arn" {
 output "alb_zone_id" {
   description = "Hosted zone ID of the ALB (for Route53 alias records)"
   value       = module.alb.alb_zone_id
+}
+
+output "certificate_arn" {
+  description = "ARN of the ACM certificate attached to the ALB"
+  value       = local.resolved_certificate_arn
+}
+
+output "certificate_validation_records" {
+  description = "DNS CNAME records to add for manual ACM certificate validation (only needed when route53_zone_id is not set)"
+  value = (
+    var.certificate_domain != "" && var.route53_zone_id == "" ?
+    [
+      for dvo in aws_acm_certificate.this[0].domain_validation_options : {
+        name  = dvo.resource_record_name
+        type  = dvo.resource_record_type
+        value = dvo.resource_record_value
+      }
+    ] : []
+  )
 }
 
 output "web_acl_id" {

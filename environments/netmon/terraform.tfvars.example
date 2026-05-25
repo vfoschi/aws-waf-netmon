@@ -8,48 +8,49 @@ environment = "production"
 waf_scope = "REGIONAL"
 
 # ── Network ───────────────────────────────────────────────────────────────────
-# VPC and at least 2 public subnets (different AZs) where the ALB will be deployed.
 vpc_id     = "vpc-xxxxxxxxxxxxxxxxx"
 subnet_ids = [
   "subnet-xxxxxxxxxxxxxxxxx",   # eu-west-1a
   "subnet-yyyyyyyyyyyyyyyyy",   # eu-west-1b
 ]
 
-# Set to true if the ALB should be internal (not internet-facing)
-alb_internal = false
-
-# Enable ALB deletion protection in production
+alb_internal               = false
 enable_deletion_protection = false
 
 # ── Origin IP (backend server) ────────────────────────────────────────────────
-# All HTTP/HTTPS traffic that passes WAF inspection is forwarded to this IP.
-# Can be a private VPC IP, an on-premises IP, or a public IP.
-origin_ip   = "10.0.1.50"   # ← set your backend server IP here
-origin_port = 80             # ← set your backend server port
+origin_ip                = "10.0.1.50"   # ← set your backend server IP
+origin_port              = 80            # ← set your backend server port
+origin_availability_zone = "all"         # "all" for external/on-prem IPs
+health_check_path        = "/"
 
-# Use "all" for IPs outside the VPC (on-premises, other VPCs, public IPs).
-# Use a specific AZ name (e.g. "eu-west-1a") for IPs inside this VPC.
-origin_availability_zone = "all"
+# ── TLS Certificate ───────────────────────────────────────────────────────────
+# Option A — let Terraform request and manage the ACM certificate:
+#   Set certificate_domain to your domain (or wildcard).
+#   If your DNS is on Route53, also set route53_zone_id for fully automatic validation.
+#   If DNS is elsewhere, leave route53_zone_id empty: after the first terraform apply,
+#   read the "certificate_validation_records" output and add the CNAMEs to your DNS,
+#   then run terraform apply again.
+certificate_domain = "netmon2.technacy.it"
 
-# ALB health check — must return HTTP 200-399
-health_check_path = "/"
+# Optional: add a wildcard SAN so the cert also covers *.technacy.it
+# certificate_san = ["*.technacy.it"]
+certificate_san = []
 
-# Optional: ACM certificate ARN to enable HTTPS on the ALB.
-# When set, HTTP requests are automatically redirected to HTTPS.
+# Route53 hosted zone ID — enables fully automatic DNS validation.
+# Find it at: AWS Console → Route53 → Hosted zones → technacy.it
+# route53_zone_id = "Z0123456789ABCDEFGHIJ"
+route53_zone_id = ""
+
+# Option B — paste an existing ACM certificate ARN (overrides certificate_domain):
 # certificate_arn = "arn:aws:acm:eu-west-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 certificate_arn = ""
 
 # ── IP Allowlist ──────────────────────────────────────────────────────────────
-# Add your office public IPs, VPN exit nodes, and monitoring agents.
-# These IPs bypass ALL WAF rules and are always allowed.
 ip_allowlist_ipv4 = [
   # "203.0.113.10/32",   # Office public IP
   # "198.51.100.0/24",   # VPN range
 ]
-
-ip_allowlist_ipv6 = [
-  # "2001:db8::/32",
-]
+ip_allowlist_ipv6 = []
 
 # ── IP Blocklist ──────────────────────────────────────────────────────────────
 ip_blocklist_ipv4 = []
@@ -57,14 +58,11 @@ ip_blocklist_ipv6 = []
 
 # ── Rate Limiting ─────────────────────────────────────────────────────────────
 rate_limit_enabled   = true
-rate_limit_threshold = 2000   # requests per 5 minutes per source IP
+rate_limit_threshold = 2000
 
 # ── Geo Blocking ─────────────────────────────────────────────────────────────
 geo_block_enabled       = false
 geo_block_country_codes = []
-# Example — block specific countries:
-# geo_block_enabled       = true
-# geo_block_country_codes = ["CN", "RU", "KP", "IR"]
 
 # ── Rule Exceptions ───────────────────────────────────────────────────────────
 exclude_size_restriction_body = false

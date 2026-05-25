@@ -3,9 +3,7 @@
 
 aws_region  = "eu-west-1"
 environment = "production"
-
-# REGIONAL for ALB/API Gateway; CLOUDFRONT requires region = us-east-1
-waf_scope = "REGIONAL"
+waf_scope   = "REGIONAL"
 
 # ── Network ───────────────────────────────────────────────────────────────────
 vpc_id     = "vpc-xxxxxxxxxxxxxxxxx"
@@ -18,34 +16,27 @@ alb_internal               = false
 enable_deletion_protection = false
 
 # ── Origin IP (backend server) ────────────────────────────────────────────────
+# All traffic that passes WAF inspection is forwarded to this IP.
 origin_ip                = "10.0.1.50"   # ← set your backend server IP
 origin_port              = 80            # ← set your backend server port
 origin_availability_zone = "all"         # "all" for external/on-prem IPs
 health_check_path        = "/"
 
 # ── TLS Certificate ───────────────────────────────────────────────────────────
-# Option A — let Terraform request and manage the ACM certificate:
-#   Set certificate_domain to your domain (or wildcard).
-#   If your DNS is on Route53, also set route53_zone_id for fully automatic validation.
-#   If DNS is elsewhere, leave route53_zone_id empty: after the first terraform apply,
-#   read the "certificate_validation_records" output and add the CNAMEs to your DNS,
-#   then run terraform apply again.
-certificate_domain = "netmon2.technacy.it"
+# Wildcard certificate *.technacy.it with automatic Route53 DNS validation.
+# The SAN "technacy.it" covers also the apex domain.
+certificate_domain = "*.technacy.it"
+certificate_san    = ["technacy.it"]
 
-# Optional: add a wildcard SAN so the cert also covers *.technacy.it
-# certificate_san = ["*.technacy.it"]
-certificate_san = []
+# Route53 hosted zone ID for technacy.it — find it at:
+# AWS Console → Route53 → Hosted zones → technacy.it → Hosted zone ID
+route53_zone_id = "ZXXXXXXXXXXXXXXXXXXXX"   # ← replace with your actual zone ID
 
-# Route53 hosted zone ID — enables fully automatic DNS validation.
-# Find it at: AWS Console → Route53 → Hosted zones → technacy.it
-# route53_zone_id = "Z0123456789ABCDEFGHIJ"
-route53_zone_id = ""
-
-# Option B — paste an existing ACM certificate ARN (overrides certificate_domain):
-# certificate_arn = "arn:aws:acm:eu-west-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# Leave empty — certificate is managed above via certificate_domain
 certificate_arn = ""
 
 # ── IP Allowlist ──────────────────────────────────────────────────────────────
+# IPs that bypass ALL WAF rules and are always allowed.
 ip_allowlist_ipv4 = [
   # "203.0.113.10/32",   # Office public IP
   # "198.51.100.0/24",   # VPN range
@@ -58,11 +49,14 @@ ip_blocklist_ipv6 = []
 
 # ── Rate Limiting ─────────────────────────────────────────────────────────────
 rate_limit_enabled   = true
-rate_limit_threshold = 2000
+rate_limit_threshold = 2000   # requests per 5 minutes per source IP
 
 # ── Geo Blocking ─────────────────────────────────────────────────────────────
 geo_block_enabled       = false
 geo_block_country_codes = []
+# Example — block specific countries:
+# geo_block_enabled       = true
+# geo_block_country_codes = ["CN", "RU", "KP", "IR"]
 
 # ── Rule Exceptions ───────────────────────────────────────────────────────────
 exclude_size_restriction_body = false

@@ -64,7 +64,7 @@ resource "aws_wafv2_ip_set" "blocklist_ipv6" {
 
 resource "aws_wafv2_web_acl" "this" {
   name        = var.name
-  description = "WAF Web ACL for ${var.name} (${var.environment})"
+  description = "WAF WebACL for ${var.name} - ${var.environment}"
   scope       = var.scope
   tags        = local.common_tags
 

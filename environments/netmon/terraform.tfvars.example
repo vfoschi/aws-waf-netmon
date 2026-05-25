@@ -5,41 +5,41 @@ aws_region  = "eu-west-1"
 environment = "production"
 waf_scope   = "REGIONAL"
 
-# ── Network ───────────────────────────────────────────────────────────────────
-vpc_id     = "vpc-xxxxxxxxxxxxxxxxx"
-subnet_ids = [
-  "subnet-xxxxxxxxxxxxxxxxx",   # eu-west-1a
-  "subnet-yyyyyyyyyyyyyyyyy",   # eu-west-1b
-]
+# ── Network (OPTIONAL) ────────────────────────────────────────────────────────
+# Leave commented out to use the account's default VPC and its public subnets
+# automatically. This is the recommended setup when origin_ip is a public IP
+# outside AWS.
+#
+# vpc_id     = "vpc-0abc1234def567890"
+# subnet_ids = ["subnet-0abc1234def567890", "subnet-0xyz9876abc543210"]
 
 alb_internal               = false
 enable_deletion_protection = false
 
-# ── Origin IP (backend server) ────────────────────────────────────────────────
-# All traffic that passes WAF inspection is forwarded to this IP.
-origin_ip                = "10.0.1.50"   # ← set your backend server IP
+# ── Origin IP (backend server — can be a public IP outside AWS) ───────────────
+origin_ip                = "1.2.3.4"     # ← set your backend server public IP
 origin_port              = 80            # ← set your backend server port
-origin_availability_zone = "all"         # "all" for external/on-prem IPs
+origin_availability_zone = "all"         # "all" is required for IPs outside the VPC
 health_check_path        = "/"
 
 # ── TLS Certificate ───────────────────────────────────────────────────────────
-# Wildcard certificate *.technacy.it with automatic Route53 DNS validation.
-# The SAN "technacy.it" covers also the apex domain.
 certificate_domain = "*.technacy.it"
 certificate_san    = ["technacy.it"]
 
-# Route53 hosted zone ID for technacy.it — find it at:
+# Route53 hosted zone ID for technacy.it
 # AWS Console → Route53 → Hosted zones → technacy.it → Hosted zone ID
 route53_zone_id = "ZXXXXXXXXXXXXXXXXXXXX"   # ← replace with your actual zone ID
 
-# Leave empty — certificate is managed above via certificate_domain
 certificate_arn = ""
 
 # ── IP Allowlist ──────────────────────────────────────────────────────────────
-# IPs that bypass ALL WAF rules and are always allowed.
+# IMPORTANT: CIDRs must use network address notation (host bits = 0).
+# Examples:
+#   "93.39.208.62/32"  → single host (use /32 if unsure)
+#   "93.39.208.56/29"  → subnet (network address, not a host address)
+#   "10.0.0.0/24"      → entire /24 block
 ip_allowlist_ipv4 = [
-  # "203.0.113.10/32",   # Office public IP
-  # "198.51.100.0/24",   # VPN range
+  # "203.0.113.10/32",
 ]
 ip_allowlist_ipv6 = []
 
@@ -49,14 +49,11 @@ ip_blocklist_ipv6 = []
 
 # ── Rate Limiting ─────────────────────────────────────────────────────────────
 rate_limit_enabled   = true
-rate_limit_threshold = 2000   # requests per 5 minutes per source IP
+rate_limit_threshold = 2000
 
 # ── Geo Blocking ─────────────────────────────────────────────────────────────
 geo_block_enabled       = false
 geo_block_country_codes = []
-# Example — block specific countries:
-# geo_block_enabled       = true
-# geo_block_country_codes = ["CN", "RU", "KP", "IR"]
 
 # ── Rule Exceptions ───────────────────────────────────────────────────────────
 exclude_size_restriction_body = false

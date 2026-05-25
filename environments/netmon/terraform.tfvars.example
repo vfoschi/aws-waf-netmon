@@ -3,43 +3,34 @@
 
 aws_region  = "eu-west-1"
 environment = "production"
-waf_scope   = "REGIONAL"
 
-# ── Network (OPTIONAL) ────────────────────────────────────────────────────────
-# Leave commented out to use the account's default VPC and its public subnets
-# automatically. This is the recommended setup when origin_ip is a public IP
-# outside AWS.
-#
-# vpc_id     = "vpc-0abc1234def567890"
-# subnet_ids = ["subnet-0abc1234def567890", "subnet-0xyz9876abc543210"]
+# ── Origin IP ─────────────────────────────────────────────────────────────────
+# Public IP of your backend server (any public IP is supported via CloudFront).
+origin_ip   = "2.40.172.107"   # ← your backend server public IP
+origin_port = 80               # ← backend HTTP port
 
-alb_internal               = false
-enable_deletion_protection = false
+# ── CloudFront ────────────────────────────────────────────────────────────────
+# Domains served via CloudFront. These must match the certificate.
+cloudfront_aliases = ["netmon2.technacy.it"]
 
-# ── Origin IP (backend server — can be a public IP outside AWS) ───────────────
-origin_ip                = "1.2.3.4"     # ← set your backend server public IP
-origin_port              = 80            # ← set your backend server port
-origin_availability_zone = "all"         # "all" is required for IPs outside the VPC
-health_check_path        = "/"
+# PriceClass_100 = US/Europe/Israel edge locations (cheapest, usually enough)
+# PriceClass_All = all edge locations worldwide
+cloudfront_price_class = "PriceClass_100"
 
-# ── TLS Certificate ───────────────────────────────────────────────────────────
+# ── TLS Certificate (us-east-1, required by CloudFront) ──────────────────────
 certificate_domain = "*.technacy.it"
 certificate_san    = ["technacy.it"]
 
-# Route53 hosted zone ID for technacy.it
+# Route53 hosted zone ID for automatic DNS validation
 # AWS Console → Route53 → Hosted zones → technacy.it → Hosted zone ID
 route53_zone_id = "ZXXXXXXXXXXXXXXXXXXXX"   # ← replace with your actual zone ID
 
-certificate_arn = ""
+certificate_arn = ""   # leave empty when using certificate_domain
 
 # ── IP Allowlist ──────────────────────────────────────────────────────────────
-# IMPORTANT: CIDRs must use network address notation (host bits = 0).
-# Examples:
-#   "93.39.208.62/32"  → single host (use /32 if unsure)
-#   "93.39.208.56/29"  → subnet (network address, not a host address)
-#   "10.0.0.0/24"      → entire /24 block
+# Use /32 for single IPs. For subnets use network address (e.g. 93.39.208.56/29).
 ip_allowlist_ipv4 = [
-  # "203.0.113.10/32",
+  # "93.39.208.62/32",   # office IP
 ]
 ip_allowlist_ipv6 = []
 

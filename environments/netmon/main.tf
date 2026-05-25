@@ -71,6 +71,9 @@ locals {
     var.certificate_domain != "" ? aws_acm_certificate.this[0].arn :
     ""
   )
+
+  # Static bool evaluated at plan time — safe for use in count/for_each
+  https_enabled = var.certificate_domain != "" || var.certificate_arn != ""
 }
 
 # ─── ALB ─────────────────────────────────────────────────────────────────────
@@ -89,6 +92,7 @@ module "alb" {
   origin_availability_zone = var.origin_availability_zone
 
   health_check_path          = var.health_check_path
+  enable_https               = local.https_enabled
   certificate_arn            = local.resolved_certificate_arn
   enable_deletion_protection = var.enable_deletion_protection
 

@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "AWS region"
+  description = "AWS region for CloudWatch logs (WAF and ACM will always be in us-east-1 for CloudFront)"
   type        = string
   default     = "eu-west-1"
 }
@@ -10,67 +10,37 @@ variable "environment" {
   default     = "production"
 }
 
-variable "waf_scope" {
-  description = "WAF scope: REGIONAL (for ALB/API GW) or CLOUDFRONT (must be us-east-1)"
-  type        = string
-  default     = "REGIONAL"
-}
-
-# ── Network (optional — defaults to the account's default VPC) ────────────────
-
-variable "vpc_id" {
-  description = "VPC ID for the ALB. Leave null to use the account's default VPC automatically."
-  type        = string
-  default     = null
-}
-
-variable "subnet_ids" {
-  description = "Public subnet IDs for the ALB (minimum 2, different AZs). Leave null to auto-detect public subnets from the VPC."
-  type        = list(string)
-  default     = null
-}
-
-variable "alb_internal" {
-  description = "Set to true for an internal ALB, false for internet-facing"
-  type        = bool
-  default     = false
-}
-
-variable "enable_deletion_protection" {
-  description = "Enable ALB deletion protection"
-  type        = bool
-  default     = false
-}
-
-# ── Origin (backend IP) ───────────────────────────────────────────────────────
+# ── Origin (backend server — any public IP is supported) ─────────────────────
 
 variable "origin_ip" {
-  description = "IP address of the backend server. All traffic that passes WAF is forwarded here. Can be a public IP outside AWS."
+  description = "Public IP or hostname of the backend server. CloudFront forwards all WAF-passed traffic here."
   type        = string
 }
 
 variable "origin_port" {
-  description = "Port on the backend server to forward traffic to"
+  description = "HTTP port on the backend server"
   type        = number
   default     = 80
 }
 
-variable "origin_availability_zone" {
-  description = "Use 'all' for IPs outside the VPC (public IPs, on-premises). Use an AZ name for IPs inside this VPC."
-  type        = string
-  default     = "all"
+# ── CloudFront ────────────────────────────────────────────────────────────────
+
+variable "cloudfront_aliases" {
+  description = "Domain names served by CloudFront (e.g. [\"netmon2.technacy.it\"]). Must match the certificate."
+  type        = list(string)
+  default     = []
 }
 
-variable "health_check_path" {
-  description = "HTTP path used by ALB health checks against the origin"
+variable "cloudfront_price_class" {
+  description = "PriceClass_100 (US/Europe/Israel, cheapest) or PriceClass_All (global)"
   type        = string
-  default     = "/"
+  default     = "PriceClass_100"
 }
 
 # ── TLS Certificate ───────────────────────────────────────────────────────────
 
 variable "certificate_domain" {
-  description = "Domain name for the ACM certificate (e.g. *.technacy.it). Leave empty to skip HTTPS."
+  description = "Domain for the ACM certificate (e.g. *.technacy.it). Certificate is created in us-east-1 for CloudFront."
   type        = string
   default     = ""
 }
@@ -88,7 +58,7 @@ variable "route53_zone_id" {
 }
 
 variable "certificate_arn" {
-  description = "ARN of an existing ACM certificate. Overrides certificate_domain when set."
+  description = "ARN of an existing ACM certificate in us-east-1. Overrides certificate_domain when set."
   type        = string
   default     = ""
 }
@@ -96,7 +66,7 @@ variable "certificate_arn" {
 # ── IP Allowlist / Blocklist ───────────────────────────────────────────────────
 
 variable "ip_allowlist_ipv4" {
-  description = "IPv4 CIDRs to always allow. Must use network address notation (e.g. 1.2.3.0/24, not 1.2.3.5/24)."
+  description = "IPv4 CIDRs to always allow. Use /32 for single IPs, network address for subnets."
   type        = list(string)
   default     = []
 }
@@ -150,13 +120,13 @@ variable "geo_block_country_codes" {
 # ── Rule Exceptions ────────────────────────────────────────────────────────────
 
 variable "exclude_size_restriction_body" {
-  description = "Exclude SizeRestrictions_BODY rule (use if NETMON accepts large payloads)"
+  description = "Exclude SizeRestrictions_BODY rule"
   type        = bool
   default     = false
 }
 
 variable "exclude_hosting_provider_ips" {
-  description = "Exclude HostingProviderIPList rule (use if NETMON cloud agents must reach the service)"
+  description = "Exclude HostingProviderIPList rule"
   type        = bool
   default     = false
 }
@@ -164,7 +134,7 @@ variable "exclude_hosting_provider_ips" {
 # ── Bot Control ────────────────────────────────────────────────────────────────
 
 variable "bot_control_enabled" {
-  description = "Enable AWS Bot Control (extra cost ~$10/month + per-million-requests)"
+  description = "Enable AWS Bot Control (extra cost)"
   type        = bool
   default     = false
 }

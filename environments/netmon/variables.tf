@@ -65,8 +65,28 @@ variable "health_check_path" {
   default     = "/"
 }
 
+# ── TLS Certificate ───────────────────────────────────────────────────────────
+
+variable "certificate_domain" {
+  description = "Domain name for the ACM certificate (e.g. netmon2.technacy.it or *.technacy.it). Leave empty to skip HTTPS."
+  type        = string
+  default     = ""
+}
+
+variable "certificate_san" {
+  description = "Additional Subject Alternative Names for the ACM certificate (e.g. [\"*.technacy.it\"])"
+  type        = list(string)
+  default     = []
+}
+
+variable "route53_zone_id" {
+  description = "Route53 hosted zone ID for automatic DNS validation of the ACM certificate. Leave empty to validate manually."
+  type        = string
+  default     = ""
+}
+
 variable "certificate_arn" {
-  description = "ACM certificate ARN for HTTPS. Leave empty for HTTP-only."
+  description = "ARN of an existing ACM certificate. Overrides certificate_domain when set."
   type        = string
   default     = ""
 }
